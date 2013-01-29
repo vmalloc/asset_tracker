@@ -1,11 +1,8 @@
-from .alert import Alert
-from .asset import Asset, CachedAsset
-from .utils import get_full_hash
-from .utils import normalize_filename
+from .asset import File
+from .source import get_timestamp
 import datetime
 import fnmatch
 import logging
-import os
 import re
 
 _logger = logging.getLogger(__name__)
@@ -15,50 +12,49 @@ class AssetTracker(object):
         super(AssetTracker, self).__init__()
         self._state = AssetTrackerState()
 
-    def add_path(self, path):
-        self._state.paths.append(path)
+    def add_source(self, source):
+        self._state.sources.append(source)
+
+    def get_deleted_files(self):
+        return list(self._state.deleted)
+
+    def get_changed_files(self):
+        return list(self._state.changed)
 
     def scan(self):
         now = datetime.datetime.now()
-        for filename in self._iter_filenames():
-            _logger.debug("Scanning %s...", filename)
-            self._scan_single_file(filename, now)
-        removed_hashes = set()
-        for asset in self._state.assets.itervalues():
-            seen_filenames = [f for f, when in asset.get_filenames().iteritems() if when == now]
-            if not seen_filenames:
-                self._state.alerts.append(Alert(asset, "Asset disappeared"))
-                removed_hashes.add(asset.get_hash())
-        for removed_hash in removed_hashes:
-            self._remove_asset_by_hash(removed_hash)
-
-    def _scan_single_file(self, filename, now):
-        cached_asset = self._state.asset_cache.get(filename)
-        if cached_asset is not None and not cached_asset.has_changed():
-            _logger.debug("%s has not changed", filename)
-            asset = self._state.assets[cached_asset.get_hash()]
-        else:
-            _logger.debug("%s has changed or did not exist", filename)
-            asset = Asset(get_full_hash(filename))
-            cached_asset = CachedAsset(filename, asset.get_hash())
-            self._state.assets[asset.get_hash()] = asset
-            self._state.asset_cache[filename] = cached_asset
-        asset.notify_seen(filename, now)
-
-    def _remove_asset_by_hash(self, h):
-        asset = self._state.assets.pop(h)
-        for filename in asset.get_filenames():
-            self._state.asset_cache.pop(filename, None)
-
-    def _iter_filenames(self):
-        for p in self._state.paths:
-            for path, _, filenames in os.walk(p):
-                for filename in filenames:
-                    if any(p.match(filename) for p in self._state.ignored_patterns):
-                        continue
-                    yield normalize_filename(os.path.join(path, filename))
-    def get_alerts(self):
-        return list(self._state.alerts)
+        for source in self._state.sources:
+            self._scan_single_source(source, now)
+    def _scan_single_source(self, source, now):
+        _logger.debug("Scanning %s", source)
+        source_assets = self._state.assets.setdefault(source, {})
+        need_hash = []
+        for filename, timestamp in source.get_listing(self._state.ignored_patterns):
+            asset = source_assets.get(filename)
+            if asset is None or asset.get_saved_timestamp() != timestamp:
+                _logger.debug("Going to need hash for %s", filename)
+                need_hash.append(filename)
+            else:
+                asset.notify_seen(now)
+        if need_hash:
+            for filename, file_hash in source.get_hashes(need_hash):
+                asset = source_assets.get(filename)
+                if asset is None:
+                    _logger.debug("%s just created", filename)
+                    asset = source_assets[filename] = File(source, filename, file_hash, get_timestamp(filename))
+                elif asset.get_hash() != file_hash:
+                    _logger.debug("%s changed hash!", filename)
+                    self._state.changed.append((asset, asset.get_hash(), file_hash))
+                    asset.set_hash(file_hash)
+                asset.notify_seen(now)
+        self._remove_not_seen_now(source, now)
+    def _remove_not_seen_now(self, source, now):
+        not_seen = []
+        for filename, cached_asset in self._state.assets[source].iteritems():
+            if cached_asset.get_last_seen() != now:
+                not_seen.append(filename)
+        for not_seen_filename in not_seen:
+            self._state.missing.append(self._state.assets[source].pop(not_seen_filename))
 
 class AssetTrackerState(object):
     def __init__(self):
@@ -69,8 +65,7 @@ class AssetTrackerState(object):
                     ".DS_Store",
             ]
         ]
-
-        self.asset_cache = {}
         self.assets = {}
-        self.paths = []
-        self.alerts = []
+        self.sources = []
+        self.deleted = []
+        self.changed = []
