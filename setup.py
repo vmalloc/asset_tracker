@@ -1,5 +1,4 @@
 import os
-import itertools
 from setuptools import setup, find_packages
 
 with open(os.path.join(os.path.dirname(__file__), "asset_tracker", "__version__.py")) as version_file:
@@ -15,7 +14,9 @@ setup(name="asset_tracker",
       author_email="vmalloc@gmail.com",
       version=__version__,
       packages=find_packages(exclude=["tests"]),
-      install_requires=[],
+      install_requires=[
+          "pushy",
+      ],
       scripts=[],
       namespace_packages=[]
       )

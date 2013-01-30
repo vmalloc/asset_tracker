@@ -3,7 +3,6 @@ from .source import get_timestamp
 import datetime
 import fnmatch
 import logging
-import re
 
 _logger = logging.getLogger(__name__)
 
@@ -37,11 +36,11 @@ class AssetTracker(object):
             else:
                 asset.notify_seen(now)
         if need_hash:
-            for filename, file_hash in source.get_hashes(need_hash):
+            for filename, file_hash, file_timestamp in source.get_hashes_and_timestamps(need_hash):
                 asset = source_assets.get(filename)
                 if asset is None:
                     _logger.debug("%s just created", filename)
-                    asset = source_assets[filename] = File(source, filename, file_hash, get_timestamp(filename))
+                    asset = source_assets[filename] = File(source, filename, file_hash, file_timestamp)
                 elif asset.get_hash() != file_hash:
                     _logger.debug("%s changed hash!", filename)
                     self._state.changed.append((asset, asset.get_hash(), file_hash))
@@ -60,7 +59,7 @@ class AssetTrackerState(object):
     def __init__(self):
         super(AssetTrackerState, self).__init__()
         self.ignored_patterns = [
-            re.compile(fnmatch.translate(f))
+            fnmatch.translate(f)
             for f in [
                     ".DS_Store",
             ]
