@@ -15,6 +15,7 @@ setup(name="asset_tracker",
       version=__version__,
       packages=find_packages(exclude=["tests"]),
       install_requires=[
+          "futures",
           "pushy",
       ],
       scripts=[],

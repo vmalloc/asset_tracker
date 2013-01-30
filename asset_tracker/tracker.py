@@ -1,5 +1,6 @@
 from .asset import File
 from .source import get_timestamp
+from futures import ThreadPoolExecutor
 import datetime
 import fnmatch
 import logging
@@ -23,7 +24,11 @@ class AssetTracker(object):
     def scan(self):
         now = datetime.datetime.now()
         for source in self._state.sources:
-            self._scan_single_source(source, now)
+            self._state.assets.setdefault(source, {})
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(self._scan_single_source, source, now) for source in self._state.sources]
+            for future in futures:
+                _ = future.result()
     def _scan_single_source(self, source, now):
         _logger.debug("Scanning %s", source)
         source_assets = self._state.assets.setdefault(source, {})
