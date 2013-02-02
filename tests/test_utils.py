@@ -1,13 +1,14 @@
-from asset_tracker import AssetTracker, LocalSource, RemoteSource
-from unittest import TestCase
-import os
-import time
-import random
-import logging
 from . import (
     get_pushy_connection,
     get_local_connection,
     )
+from asset_tracker import AssetTracker, LocalSource, RemoteSource
+from asset_tracker.utils import Call
+from unittest import TestCase
+import logging
+import os
+import random
+import time
 
 _logger = logging.getLogger(__name__)
 
@@ -32,7 +33,11 @@ class AssetTrackerTest(TestCase):
                 conn.modules.os.utime(filename, (mtime, mtime))
         self.tracker = AssetTracker()
         self.tracker.add_source(LocalSource(self.roots["localhost"]))
-        self.tracker.add_source(RemoteSource(get_pushy_connection(), self.roots["vagrant"]))
+        self.tracker.add_source(RemoteSource(
+            Call("ssh:127.0.0.1", use_native=False, username="vagrant", missing_host_key_policy="autoadd",
+                 port=2222,
+                 key_filename=os.path.expanduser("~/.vagrant.d/insecure_private_key")),
+            self.roots["vagrant"]))
         self.tracker.scan()
     def _change_file(self, remote):
         hostname = "vagrant" if remote else "localhost"

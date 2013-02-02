@@ -1,5 +1,6 @@
 import hashlib
 import os
+import pushy
 import re
 
 class Source(object):
@@ -24,22 +25,26 @@ class LocalSource(Source):
         return [(filename, get_full_hash(filename), get_timestamp(filename)) for filename in filenames]
 
 class RemoteSource(Source):
-    def __init__(self, pushy_connection, path):
+    def __init__(self, pushy_call, path):
         super(RemoteSource, self).__init__()
-        self._conn = pushy_connection
-        temp_dir = self._conn.modules.tempfile.mkdtemp()
+        self._pushy_call = pushy_call
+        self._path = path
+    def _get_connection(self):
+        return self._pushy_call.apply(pushy.connect)
+    def _get_remote_source(self):
+        conn = self._get_connection()
+        temp_dir = conn.modules.tempfile.mkdtemp()
         local_module_filename = __file__
         if local_module_filename.endswith(".pyc"):
             local_module_filename = local_module_filename[:-1]
-        self._conn.putfile(local_module_filename, os.path.join(temp_dir, "assettracker__remote_module.py"))
-        self._conn.modules.sys.path.insert(0, temp_dir)
-        self._mod = self._conn.modules.__builtin__.__import__("assettracker__remote_module")
-        self._conn.modules.sys.path.pop(0)
-        self._source = self._mod.LocalSource(path)
+        conn.putfile(local_module_filename, os.path.join(temp_dir, "assettracker__remote_module.py"))
+        conn.modules.sys.path.insert(0, temp_dir)
+        module = conn.modules.__builtin__.__import__("assettracker__remote_module")
+        return  module.LocalSource(self._path)
     def get_listing(self, ignored_patterns):
-        return self._source.get_listing(ignored_patterns)
+        return self._get_remote_source().get_listing(ignored_patterns)
     def get_hashes_and_timestamps(self, filenames):
-        return self._source.get_hashes_and_timestamps(filenames)
+        return self._get_remote_source().get_hashes_and_timestamps(filenames)
 
 _BLOCK_SIZE = 4096
 

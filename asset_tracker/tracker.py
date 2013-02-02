@@ -1,5 +1,4 @@
 from .asset import File
-from .source import get_timestamp
 from futures import ThreadPoolExecutor
 import datetime
 import fnmatch
