@@ -18,6 +18,9 @@ setup(name="asset_tracker",
           "futures",
           "pushy",
       ],
-      scripts=[],
-      namespace_packages=[]
+      entry_points = dict(
+          console_scripts = [
+              "assets  = asset_tracker.main:main_entry_point",
+          ]
+      ),
       )

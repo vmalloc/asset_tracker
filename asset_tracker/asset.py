@@ -18,3 +18,9 @@ class File(object):
         return self._last_seen
     def get_saved_timestamp(self):
         return self._saved_timestamp
+    def __repr__(self):
+        returned = self._filename
+        hostname = self._source.get_hostname()
+        if hostname is not None:
+            returned = "{}:{}".format(hostname, returned)
+        return returned
