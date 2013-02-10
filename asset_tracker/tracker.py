@@ -1,16 +1,17 @@
-import pickle
-from .asset import File
-from .source import LocalSource
-from .source import RemoteSource
 from .alert import (
     ChangeAlert,
     DeletionAlert
 )
+from .asset import File
+from .source import LocalSource
+from .source import RemoteSource
 from futures import ThreadPoolExecutor
+import copy
 import datetime
 import fnmatch
 import logging
 import os
+import pickle
 
 _logger = logging.getLogger(__name__)
 
@@ -19,6 +20,10 @@ class AssetTracker(object):
         super(AssetTracker, self).__init__()
         self._state = AssetTrackerState()
         self._sources = []
+
+    def iter_assets(self):
+        return (copy.deepcopy(asset) for hostname, assets in self._state.assets.iteritems()
+                for asset in assets.itervalues())
 
     def load_configuration(self, path):
         with open(os.path.expanduser(path)) as f:

@@ -26,6 +26,19 @@ def cmd_scan(args):
     asset_tracker.save_state(args.state_filename)
     return 0
 
+@_action("duplicates")
+def cmd_duplicates(args):
+    by_hash = {}
+    for asset in asset_tracker.iter_assets():
+        by_hash.setdefault(asset.get_hash(), []).append(asset)
+
+    index = 1
+    for asset_hash, assets in by_hash.iteritems():
+        if len(assets) > 1:
+            print(index, ")", ", ".join(str(asset) for asset in assets))
+            index += 1
+    return 0
+
 def _report():
     print("Total:", asset_tracker.get_num_assets(), "assets tracked on", asset_tracker.get_num_machines(), "machines")
     missing = asset_tracker.get_deleted_files()
