@@ -2,6 +2,10 @@ import pickle
 from .asset import File
 from .source import LocalSource
 from .source import RemoteSource
+from .alert import (
+    ChangeAlert,
+    DeletionAlert
+)
 from futures import ThreadPoolExecutor
 import datetime
 import fnmatch
@@ -31,6 +35,15 @@ class AssetTracker(object):
         except IOError:
             pass
         else:
+            for obsolete_attr in ["changed", "deleted"]:
+                if hasattr(state, obsolete_attr):
+                    assert not getattr(state, obsolete_attr)
+                    delattr(state, obsolete_attr)
+            for possibly_missing, default in [
+                    ("alerts", []),
+                    ]:
+                if not hasattr(state, possibly_missing):
+                    setattr(state, possibly_missing, default)
             self._state = state
 
     def save_state(self, path):
@@ -43,11 +56,20 @@ class AssetTracker(object):
     def add_source(self, source):
         self._sources.append(source)
 
+    def get_alerts(self):
+        return list(self._state.alerts)
+
     def get_deleted_files(self):
-        return list(self._state.deleted)
+        return self._get_alert_files(DeletionAlert)
 
     def get_changed_files(self):
-        return list(self._state.changed)
+        return self._get_alert_files(ChangeAlert)
+
+    def _get_alert_files(self, alert_class):
+        return [alert.asset for alert in self._get_alerts(alert_class)]
+
+    def _get_alerts(self, alert_class):
+        return [alert for alert in self._state.alerts if isinstance(alert, alert_class)]
 
     def get_num_assets(self):
         return sum(len(x) for x in self._state.assets.itervalues())
@@ -85,7 +107,7 @@ class AssetTracker(object):
                     assert asset.get_saved_timestamp() is not None
                 elif asset.get_hash() != file_hash:
                     _logger.debug("%s changed hash!", filename)
-                    self._state.changed.append((asset, asset.get_hash(), file_hash))
+                    self._state.alerts.append(ChangeAlert(asset, asset.get_hash(), file_hash))
                     asset.set_hash(file_hash)
                 asset.notify_seen(now)
         self._remove_not_seen_now(source, now)
@@ -96,7 +118,7 @@ class AssetTracker(object):
                 _logger.debug("%s is going to be removed", filename)
                 not_seen.append(filename)
         for not_seen_filename in not_seen:
-            self._state.deleted.append(self._state.assets[source.get_hostname()].pop(not_seen_filename))
+            self._state.alerts.append(DeletionAlert(self._state.assets[source.get_hostname()].pop(not_seen_filename)))
 
 class AssetTrackerState(object):
     def __init__(self):
@@ -108,5 +130,4 @@ class AssetTrackerState(object):
             ]
         ]
         self.assets = {}
-        self.deleted = []
-        self.changed = []
+        self.alerts = []
