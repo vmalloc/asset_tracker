@@ -26,11 +26,21 @@ class LocalSource(Source):
                 if any(p.match(filename) for p in ignored_patterns):
                     _logger.debug("Ignoring %s", filename)
                     continue
-                filename = normalize_filename(os.path.join(path, filename))
+                orig_filename = os.path.join(path, filename)
+                filename = normalize_filename(orig_filename)
                 _logger.debug("Checking %s", filename)
-                yield filename, get_timestamp(filename)
+                try:
+                    yield filename, get_timestamp(filename)
+                except OSError as e:
+                    _logger.warning("Ignoring %s (%s)", orig_filename, e)
     def get_hashes_and_timestamps(self, filenames):
-        return [(filename, get_full_hash(filename), get_timestamp(filename)) for filename in filenames]
+        returned = []
+        for filename in filenames:
+            try:
+                returned.append((filename, get_full_hash(filename), get_timestamp(filename)))
+            except OSError as e:
+                _logger.warning("Ignoring %s (%s)", filename, e)
+        return returned
     def __repr__(self):
         return "<localhost>"
     def get_hostname(self):
