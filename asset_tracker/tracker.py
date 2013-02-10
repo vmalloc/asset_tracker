@@ -87,43 +87,52 @@ class AssetTracker(object):
         for source in self._sources:
             self._state.assets.setdefault(source.get_hostname(), {})
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(self._scan_single_source, source, now) for source in self._sources]
+            futures = [executor.submit(self._scan_single_host, hostname, sources, now) for hostname, sources in self._group_sources_by_hostname()]
             for future in futures:
                 _ = future.result()
-    def _scan_single_source(self, source, now):
-        _logger.debug("Scanning %s", source)
-        source_assets = self._state.assets.setdefault(source.get_hostname(), {})
-        need_hash = []
-        for filename, timestamp in source.get_listing(self._state.ignored_patterns):
-            asset = source_assets.get(filename)
-            if asset is None or asset.get_saved_timestamp() != timestamp:
-                _logger.debug("Going to need hash for %s (saved=%s, got=%s)",
-                              filename,
-                              asset.get_saved_timestamp() if asset else "none", timestamp)
-                need_hash.append(filename)
-            else:
-                asset.notify_seen(now)
+
+    def _group_sources_by_hostname(self):
+        sources_by_hostname = {}
+        for source in self._sources:
+            sources_by_hostname.setdefault(source.get_hostname(), []).append(source)
+        return sources_by_hostname.iteritems()
+
+    def _scan_single_host(self, hostname, sources, now):
+        _logger.debug("Scanning %s", hostname)
+        host_assets = self._state.assets.setdefault(hostname, {})
+        need_hash = {}
+        for source in sources:
+            for filename, timestamp in source.get_listing(self._state.ignored_patterns):
+                asset = host_assets.get(filename)
+                if asset is None or asset.get_saved_timestamp() != timestamp:
+                    _logger.debug("Going to need hash for %s (saved=%s, got=%s)",
+                                  filename,
+                                  asset.get_saved_timestamp() if asset else "none", timestamp)
+                    need_hash.setdefault(source, []).append(filename)
+                else:
+                    asset.notify_seen(now)
         if need_hash:
-            for filename, file_hash, file_timestamp in source.get_hashes_and_timestamps(need_hash):
-                asset = source_assets.get(filename)
-                if asset is None:
-                    _logger.debug("%s just created", filename)
-                    asset = source_assets[filename] = File(source, filename, file_hash, file_timestamp)
-                    assert asset.get_saved_timestamp() is not None
-                elif asset.get_hash() != file_hash:
-                    _logger.debug("%s changed hash!", filename)
-                    self._state.alerts.append(ChangeAlert(asset, asset.get_hash(), file_hash))
-                    asset.set_hash(file_hash)
-                asset.notify_seen(now)
-        self._remove_not_seen_now(source, now)
-    def _remove_not_seen_now(self, source, now):
+            for source, filenames in need_hash.iteritems():
+                for filename, file_hash, file_timestamp in source.get_hashes_and_timestamps(filenames):
+                    asset = host_assets.get(filename)
+                    if asset is None:
+                        _logger.debug("%s just created", filename)
+                        asset = host_assets[filename] = File(source, filename, file_hash, file_timestamp)
+                        assert asset.get_saved_timestamp() is not None
+                    elif asset.get_hash() != file_hash:
+                        _logger.debug("%s changed hash!", filename)
+                        self._state.alerts.append(ChangeAlert(asset, asset.get_hash(), file_hash))
+                        asset.set_hash(file_hash)
+                    asset.notify_seen(now)
+        self._remove_not_seen_now(hostname, now)
+    def _remove_not_seen_now(self, hostname, now):
         not_seen = []
-        for filename, cached_asset in self._state.assets[source.get_hostname()].iteritems():
+        for filename, cached_asset in self._state.assets[hostname].iteritems():
             if cached_asset.get_last_seen() != now:
                 _logger.debug("%s is going to be removed", filename)
                 not_seen.append(filename)
         for not_seen_filename in not_seen:
-            self._state.alerts.append(DeletionAlert(self._state.assets[source.get_hostname()].pop(not_seen_filename)))
+            self._state.alerts.append(DeletionAlert(self._state.assets[hostname].pop(not_seen_filename)))
 
 class AssetTrackerState(object):
     def __init__(self):
