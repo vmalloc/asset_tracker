@@ -117,7 +117,7 @@ class AssetTracker(object):
                     asset = host_assets.get(filename)
                     if asset is None:
                         _logger.debug("%s just created", filename)
-                        asset = host_assets[filename] = File(source, filename, file_hash, file_timestamp)
+                        asset = host_assets[filename] = File(hostname, filename, file_hash, file_timestamp)
                         assert asset.get_saved_timestamp() is not None
                     elif asset.get_hash() != file_hash:
                         _logger.debug("%s changed hash!", filename)

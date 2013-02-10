@@ -1,7 +1,7 @@
 class File(object):
-    def __init__(self, source, filename, file_hash, file_timestamp):
+    def __init__(self, hostname, filename, file_hash, file_timestamp):
         super(File, self).__init__()
-        self._source = source
+        self._hostname = hostname
         self._filename = filename
         self._hash = file_hash
         self._last_seen = None
@@ -20,7 +20,6 @@ class File(object):
         return self._saved_timestamp
     def __repr__(self):
         returned = self._filename
-        hostname = self._source.get_hostname()
-        if hostname is not None:
-            returned = "{}:{}".format(hostname, returned)
+        if self._hostname is not None:
+            returned = "{}:{}".format(self._hostname, returned)
         return returned
