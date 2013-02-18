@@ -32,12 +32,10 @@ class AssetTrackerTest(TestCase):
                     outfile.write(filename)
                 conn.modules.os.utime(filename, (mtime, mtime))
         self.tracker = AssetTracker()
-        self.tracker.add_source(LocalSource(self.roots["localhost"]))
-        self.tracker.add_source(RemoteSource("127.0.0.1", 
-                pushy_call=Call(use_native=False, username="vagrant", missing_host_key_policy="autoadd",
-                                port=2222,
-                                key_filename=os.path.expanduser("~/.vagrant.d/insecure_private_key")),
-                path=self.roots["vagrant"]))
+        self.tracker.add_host("vagrant", "ssh:127.0.0.1", port=2222, use_native=False, username="vagrant",
+                              missing_host_key_policy="autoadd", key_filename=os.path.expanduser("~/.vagrant.d/insecure_private_key"))
+        self.tracker.add_directory(self.roots["localhost"])
+        self.tracker.add_directory(self.roots["vagrant"], "vagrant")
         self.tracker.scan()
     def _change_file(self, remote):
         hostname = "vagrant" if remote else "localhost"

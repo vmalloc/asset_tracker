@@ -7,7 +7,7 @@ import logging
 _logger = logging.getLogger(__name__)
 
 class Source(object):
-    def get_listing(self, ignored_patterns):
+    def get_listing(self, path, ignored_patterns):
         raise NotImplementedError() # pragma: no cover
     def get_hashes_and_timestamps(self, filenames):
         raise NotImplementedError() # pragma: no cover
@@ -15,13 +15,11 @@ class Source(object):
         raise NotImplementedError() # pragma: no cover
 
 class LocalSource(Source):
-    def __init__(self, path):
-        super(LocalSource, self).__init__()
-        self._path = os.path.expanduser(path)
-        _logger.debug("After expanduser: %s", self._path)
-    def get_listing(self, ignored_patterns):
+    def get_listing(self, root_path, ignored_patterns):
+        root_path = os.path.expanduser(root_path)
+        _logger.debug("After expanduser: %s", root_path)
         ignored_patterns = [re.compile(p) for p in ignored_patterns]
-        for path, _, filenames in os.walk(self._path):
+        for path, _, filenames in os.walk(root_path):
             for filename in filenames:
                 if any(p.match(filename) for p in ignored_patterns):
                     _logger.debug("Ignoring %s", filename)
@@ -47,16 +45,11 @@ class LocalSource(Source):
         return None
 
 class RemoteSource(Source):
-    def __init__(self, hostname, path, pushy_call=None):
+    def __init__(self, pushy_call):
         super(RemoteSource, self).__init__()
-        self._hostname = hostname
         self._pushy_call = pushy_call
-        self._path = path
     def _get_connection(self):
-        hostname = "ssh:{}".format(self.get_hostname())
-        if self._pushy_call is None:
-            return pushy.connect(hostname)
-        return self._pushy_call.apply(pushy.connect, hostname)
+        return self._pushy_call.apply(pushy.connect)
     def _get_remote_source(self):
         conn = self._get_connection()
         temp_dir = conn.modules.tempfile.mkdtemp()
@@ -66,15 +59,11 @@ class RemoteSource(Source):
         conn.putfile(local_module_filename, os.path.join(temp_dir, "assettracker__remote_module.py"))
         conn.modules.sys.path.insert(0, temp_dir)
         module = conn.modules.__builtin__.__import__("assettracker__remote_module")
-        return  module.LocalSource(self._path)
-    def get_listing(self, ignored_patterns):
-        return self._get_remote_source().get_listing(ignored_patterns)
+        return  module.LocalSource()
+    def get_listing(self, root_path, ignored_patterns):
+        return self._get_remote_source().get_listing(root_path, ignored_patterns)
     def get_hashes_and_timestamps(self, filenames):
         return self._get_remote_source().get_hashes_and_timestamps(filenames)
-    def __repr__(self):
-        return "<ssh:{}>".format(self.get_hostname())
-    def get_hostname(self):
-        return self._hostname
 
 _BLOCK_SIZE = 4096
 

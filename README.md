@@ -6,10 +6,11 @@ I back up my data all of the time, and even have an online backup service. The p
 # Usage
 Write the following in ~/.asset_tracker/config:
 
+    # this is needed if you have a remote machine you would like to scan
+	tracker.add_host("my_host_alias", "ssh:192.168.11.12")
 	# this is useful for locally stored assets
-    tracker.add_source(LocalSource("/path/to/your/local/collection"))
-	# we also support remote (over ssh) collections
-	tracker.add_source(RemoteSource("my.ssh.machine.name", "/path/on/machine"))
+	tracker.add_directory("/some/local/path")
+	tracker.add_directory("/some/remote/path", host="my_host_alias")
 	
 To scan your collection, run:
 
