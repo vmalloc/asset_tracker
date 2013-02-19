@@ -41,16 +41,11 @@ def cmd_duplicates(args):
 
 def _report():
     print("Total:", asset_tracker.get_num_assets(), "assets tracked on", asset_tracker.get_num_machines(), "machines")
-    missing = asset_tracker.get_deleted_files()
-    if missing:
-        print("**** MISSING FILES:")
-        for asset in missing:
-            print(asset)
-    changed = asset_tracker.get_changed_files()
-    if changed:
-        print("**** CHANGED FILES:")
-        for asset in changed:
-            print(asset)
+    for index, alert in enumerate(asset_tracker.get_alerts()):
+        if index == 0:
+            print("*** ALERTS ***")
+        index += 1
+        print(index, ")", alert)
 
 ################################## Boilerplate ################################
 def _configure_logging(args):
