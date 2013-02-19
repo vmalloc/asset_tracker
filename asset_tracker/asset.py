@@ -1,9 +1,10 @@
 class File(object):
-    def __init__(self, hostname, filename, file_hash, file_timestamp):
+    def __init__(self, scan_time, hostname, filename, file_hash, file_timestamp):
         super(File, self).__init__()
         self._hostname = hostname
         self._filename = filename
         self._hash = file_hash
+        self._first_seen = scan_time
         self._last_seen = None
         self._saved_timestamp = file_timestamp
     def get_filename(self):
@@ -16,6 +17,8 @@ class File(object):
         self._last_seen = when
     def get_last_seen(self):
         return self._last_seen
+    def get_first_seen(self):
+        return self._first_seen
     def get_saved_timestamp(self):
         return self._saved_timestamp
     def __repr__(self):

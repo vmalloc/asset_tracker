@@ -97,6 +97,12 @@ class AssetTracker(object):
             futures = [executor.submit(self._scan_single_host, hostname, sources, now) for hostname, sources in self._dirs.iteritems()]
             for future in futures:
                 _ = future.result()
+        num_new_files = 0
+        for hostname, assets in self._state.assets.iteritems():
+            for asset in assets.itervalues():
+                if asset.get_first_seen() == now:
+                    num_new_files += 1
+        _logger.info("Scan finished. %s new files.", num_new_files)
 
     def _get_source(self, hostname):
         if hostname is None:
@@ -123,7 +129,7 @@ class AssetTracker(object):
                 asset = host_assets.get(filename)
                 if asset is None:
                     _logger.debug("%s just created", filename)
-                    asset = host_assets[filename] = File(hostname, filename, file_hash, file_timestamp)
+                    asset = host_assets[filename] = File(now, hostname, filename, file_hash, file_timestamp)
                     assert asset.get_saved_timestamp() is not None
                 elif asset.get_hash() != file_hash:
                     _logger.debug("%s changed hash!", filename)
