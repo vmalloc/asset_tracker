@@ -75,7 +75,7 @@ def get_full_hash(filename):
             if not b:
                 break
             h.update(b)
-    return h.digest()
+    return (os.path.getsize(filename), h.digest())
 
 def get_timestamp(filename):
     s = os.stat(filename)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function
+from .alert import DeletionAlert
 from .tracker import AssetTracker
 import argparse
 import logging
@@ -46,6 +47,10 @@ def _report():
             print("*** ALERTS ***")
         index += 1
         print(index, ")", alert)
+        if isinstance(alert, DeletionAlert):
+            recoverable = asset_tracker.get_identical_assets(alert.asset)
+            if recoverable:
+                print("\tFound alternative:", recoverable[0])
 
 ################################## Boilerplate ################################
 def _configure_logging(args):

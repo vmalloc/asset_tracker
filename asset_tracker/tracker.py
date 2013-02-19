@@ -86,6 +86,10 @@ class AssetTracker(object):
     def get_num_assets(self):
         return sum(len(x) for x in self._state.assets.itervalues())
 
+    def get_identical_assets(self, asset):
+        asset_hash = asset.get_hash()
+        return [other for other in self.iter_assets() if other.get_hash() == asset_hash]
+
     def get_num_machines(self):
         return len(self._state.assets)
 
