@@ -102,7 +102,7 @@ class AssetTracker(object):
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(self._scan_single_host, hostname, host_dirs, now) for hostname, host_dirs in self._dirs.iteritems()]
             for future in futures:
-                _ = future.result()
+                self._state.alerts.extend(future.result())
         num_new_files = 0
         for hostname, assets in self._state.assets.iteritems():
             for asset in assets.itervalues():
@@ -112,6 +112,7 @@ class AssetTracker(object):
 
     def _scan_single_host(self, hostname, paths, now):
         _logger.debug("Scanning %s", hostname)
+        returned_alerts = []
         host = self._hosts[hostname]
         host_assets = self._state.assets.setdefault(hostname, {})
         need_hash = set()
@@ -134,18 +135,21 @@ class AssetTracker(object):
                     assert asset.get_saved_timestamp() is not None
                 elif asset.get_hash() != file_hash:
                     _logger.debug("%s changed hash!", filename)
-                    self._state.alerts.append(ChangeAlert(asset, asset.get_hash(), file_hash))
-                    asset.set_hash(file_hash)
+                    returned_alerts.append(ChangeAlert(asset, asset.get_hash(), file_hash))
+                    asset.set_hash(now, file_hash)
                 asset.notify_seen(now)
-        self._remove_not_seen_now(hostname, now)
+        returned_alerts.extend(self._remove_not_seen_now(hostname, now))
+        return returned_alerts
     def _remove_not_seen_now(self, hostname, now):
+        returned_alerts = []
         not_seen = []
         for filename, cached_asset in self._state.assets[hostname].iteritems():
             if cached_asset.get_last_seen() != now:
                 _logger.debug("%s is going to be removed", filename)
                 not_seen.append(filename)
         for not_seen_filename in not_seen:
-            self._state.alerts.append(DeletionAlert(self._state.assets[hostname].pop(not_seen_filename)))
+            returned_alerts.append(DeletionAlert(self._state.assets[hostname].pop(not_seen_filename)))
+        return returned_alerts
 
 class AssetTrackerState(object):
     def __init__(self):
