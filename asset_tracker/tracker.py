@@ -70,6 +70,9 @@ class AssetTracker(object):
     def get_alerts(self):
         return list(self._state.alerts)
 
+    def clear_alert(self, alert):
+        self._state.alerts.remove(alert)
+
     def get_deleted_files(self):
         return self._get_alert_files(DeletionAlert)
 

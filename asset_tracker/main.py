@@ -40,6 +40,15 @@ def cmd_duplicates(args):
             index += 1
     return 0
 
+@_action("clear")
+def cmd_clear_alert(args):
+    alerts = asset_tracker.get_alerts()
+    to_clear = [alerts[int(index)-1] for index in args.indices]
+    for alert in to_clear:
+        asset_tracker.clear_alert(alert)
+    asset_tracker.save_state(args.state_filename)
+cmd_clear_alert.add_argument("indices", nargs="+")
+
 def _report():
     print("Total:", asset_tracker.get_num_assets(), "assets tracked on", asset_tracker.get_num_machines(), "machines")
     for index, alert in enumerate(asset_tracker.get_alerts()):
