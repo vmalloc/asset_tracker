@@ -1,5 +1,5 @@
 from .test_utils import AssetTrackerTest
-from asset_tracker.source import normalize_filename
+from asset_tracker.host import normalize_filename
 import os
 
 class TrackerTest(AssetTrackerTest):

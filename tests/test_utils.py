@@ -2,8 +2,7 @@ from . import (
     get_pushy_connection,
     get_local_connection,
     )
-from asset_tracker import AssetTracker, LocalSource, RemoteSource
-from asset_tracker.utils import Call
+from asset_tracker import AssetTracker
 from unittest import TestCase
 import logging
 import os

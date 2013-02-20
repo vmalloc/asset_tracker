@@ -3,11 +3,10 @@ from .alert import (
     DeletionAlert
 )
 from .asset import File
-from .source import (
-    LocalSource,
-    RemoteSource,
+from .host import (
+    LocalHost,
+    RemoteHost,
 )
-from .utils import Call
 from futures import ThreadPoolExecutor
 import copy
 import datetime
@@ -23,10 +22,10 @@ class AssetTracker(object):
         super(AssetTracker, self).__init__()
         self._state = AssetTrackerState()
         self._dirs = {} # hostname -> paths
-        self._hosts = {}
+        self._hosts = {None : LocalHost()}
 
     def add_host(self, alias, hostname, **pushy_kwargs):
-        self._hosts[alias] = Call(hostname, **pushy_kwargs)
+        self._hosts[alias] = RemoteHost(hostname, **pushy_kwargs)
 
     def iter_assets(self):
         return (copy.deepcopy(asset) for hostname, assets in self._state.assets.iteritems()
@@ -42,8 +41,8 @@ class AssetTracker(object):
             with open(path, "rb") as f:
                 state = pickle.load(f)
                 assert not any(asset.get_saved_timestamp() is None
-                               for source_assets in state.assets.itervalues()
-                               for asset in source_assets.itervalues())
+                               for host_assets in state.assets.itervalues()
+                               for asset in host_assets.itervalues())
         except IOError:
             pass
         else:
@@ -98,7 +97,7 @@ class AssetTracker(object):
         for hostname in self._dirs:
             self._state.assets.setdefault(hostname, {})
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(self._scan_single_host, hostname, sources, now) for hostname, sources in self._dirs.iteritems()]
+            futures = [executor.submit(self._scan_single_host, hostname, host_dirs, now) for hostname, host_dirs in self._dirs.iteritems()]
             for future in futures:
                 _ = future.result()
         num_new_files = 0
@@ -108,18 +107,13 @@ class AssetTracker(object):
                     num_new_files += 1
         _logger.info("Scan finished. %s new files.", num_new_files)
 
-    def _get_source(self, hostname):
-        if hostname is None:
-            return LocalSource()
-        return RemoteSource(self._hosts[hostname])
-
     def _scan_single_host(self, hostname, paths, now):
         _logger.debug("Scanning %s", hostname)
-        source = self._get_source(hostname)
+        host = self._hosts[hostname]
         host_assets = self._state.assets.setdefault(hostname, {})
         need_hash = set()
         for path in paths:
-            for filename, timestamp in source.get_listing(path, self._state.ignored_patterns):
+            for filename, timestamp in host.get_listing(path, self._state.ignored_patterns):
                 asset = host_assets.get(filename)
                 if asset is None or asset.get_saved_timestamp() != timestamp:
                     _logger.debug("Going to need hash for %s (saved=%s, got=%s)",
@@ -129,7 +123,7 @@ class AssetTracker(object):
                 else:
                     asset.notify_seen(now)
         if need_hash:
-            for filename, file_hash, file_timestamp in source.get_hashes_and_timestamps(need_hash):
+            for filename, file_hash, file_timestamp in host.get_hashes_and_timestamps(need_hash):
                 asset = host_assets.get(filename)
                 if asset is None:
                     _logger.debug("%s just created", filename)
