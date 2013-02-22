@@ -1,5 +1,6 @@
 from .test_utils import AssetTrackerTest
 from asset_tracker.host import normalize_filename
+import datetime
 import os
 
 class TrackerTest(AssetTrackerTest):
@@ -54,6 +55,17 @@ class TrackerTest(AssetTrackerTest):
         conn.modules.os.unlink(ignored_file)
         self.tracker.scan()
         self.assertNoAlerts()
+    def test__scrubbing(self):
+        self.tracker.scan(scrub_count=0)
+        orig_hash_time = datetime.datetime.now() - datetime.timedelta(seconds=100)
+        for asset in self.tracker.iter_assets():
+            asset.set_last_hash_time(orig_hash_time)
+            self.assertEquals(asset.get_last_hash_time(), orig_hash_time)
+        scrub_count=1
+        self.tracker.scan(scrub_count=scrub_count)
+        new_hash_times = [asset.get_last_hash_time()
+                          for asset in self.tracker.iter_assets() if asset.get_last_hash_time() != orig_hash_time]
+        self.assertEquals(len(new_hash_times), scrub_count * len(self.conns))
     def _get_hostname_conn(self, remote):
         hostname = "vagrant" if remote else "localhost"
         return hostname, self.conns[hostname]

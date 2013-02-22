@@ -22,10 +22,11 @@ def _action(name):
 
 @_action("scan")
 def cmd_scan(args):
-    asset_tracker.scan()
+    asset_tracker.scan(scrub_count=args.scrub_count)
     _report()
     asset_tracker.save_state(args.state_filename)
     return 0
+cmd_scan.add_argument("--scrub-count", default=5, type=int)
 
 @_action("duplicates")
 def cmd_duplicates(args):

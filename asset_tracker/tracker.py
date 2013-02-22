@@ -8,7 +8,7 @@ from .host import (
     RemoteHost,
 )
 from futures import ThreadPoolExecutor
-import copy
+import heapq
 import datetime
 import fnmatch
 import logging
@@ -28,7 +28,7 @@ class AssetTracker(object):
         self._hosts[alias] = RemoteHost(hostname, **pushy_kwargs)
 
     def iter_assets(self):
-        return (copy.deepcopy(asset) for hostname, assets in self._state.assets.iteritems()
+        return (asset for hostname, assets in self._state.assets.iteritems()
                 for asset in assets.itervalues())
 
     def load_configuration(self, path):
@@ -95,12 +95,12 @@ class AssetTracker(object):
     def get_num_machines(self):
         return len(self._state.assets)
 
-    def scan(self):
+    def scan(self, scrub_count=0):
         now = datetime.datetime.now()
         for hostname in self._dirs:
             self._state.assets.setdefault(hostname, {})
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(self._scan_single_host, hostname, host_dirs, now) for hostname, host_dirs in self._dirs.iteritems()]
+            futures = [executor.submit(self._scan_single_host, hostname, host_dirs, now, scrub_count) for hostname, host_dirs in self._dirs.iteritems()]
             for future in futures:
                 self._state.alerts.extend(future.result())
         num_new_files = 0
@@ -110,7 +110,7 @@ class AssetTracker(object):
                     num_new_files += 1
         _logger.info("Scan finished. %s new files.", num_new_files)
 
-    def _scan_single_host(self, hostname, paths, now):
+    def _scan_single_host(self, hostname, paths, now, scrub_count):
         _logger.debug("Scanning %s", hostname)
         returned_alerts = []
         host = self._hosts[hostname]
@@ -126,6 +126,10 @@ class AssetTracker(object):
                     need_hash.add(filename)
                 else:
                     asset.notify_seen(now)
+        _logger.debug("Getting scrub list (count=%s)...", scrub_count)
+        for scrub_filename in self._get_scrub_list(host_assets, scrub_count):
+            _logger.debug("Going to scrub %s", scrub_filename)
+            need_hash.add(scrub_filename)
         if need_hash:
             for filename, file_hash, file_timestamp in host.get_hashes_and_timestamps(need_hash):
                 asset = host_assets.get(filename)
@@ -136,10 +140,20 @@ class AssetTracker(object):
                 elif asset.get_hash() != file_hash:
                     _logger.debug("%s changed hash!", filename)
                     returned_alerts.append(ChangeAlert(asset, asset.get_hash(), file_hash))
-                    asset.set_hash(now, file_hash)
+                asset.set_hash(now, file_hash)
                 asset.notify_seen(now)
         returned_alerts.extend(self._remove_not_seen_now(hostname, now))
         return returned_alerts
+    def _get_scrub_list(self, assets, count):
+        returned = [
+            filename
+            for _, filename in heapq.nsmallest(count,
+                    ((asset.get_last_hash_time(), filename)
+                    for filename, asset in assets.iteritems()),
+            )
+        ]
+        assert returned or count == 0 or not assets, "get_scrub_list returned empty"
+        return returned
     def _remove_not_seen_now(self, hostname, now):
         returned_alerts = []
         not_seen = []

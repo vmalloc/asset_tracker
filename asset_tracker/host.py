@@ -75,6 +75,7 @@ class RemoteHost(Host):
 _BLOCK_SIZE = 4096
 
 def get_full_hash(filename):
+    _logger.debug("Hashing %s...", filename)
     h = hashlib.sha256()
     with open(filename, "rb") as f:
         while True:
